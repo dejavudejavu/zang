@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Gallery</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<!-- <link type="text/css" rel="stylesheet" href="main.css"> -->
+		<style>
+			body {
+				background-color: #cce0ff;
+				color: #000;
+			}
+			a {
+				color: #080;
+			}
+		</style>
+    </head>
+    <body>
+        <script type="module">//可以使用import导入文件
+            import * as THREE from '../../build/three.module.js';
+            import { OrbitControls } from '../jsm/controls/OrbitControls.js';
+            //import {ObjectLoader} from '../../src/loaders/ObjectLoader.js';
+            import {GLTFLoader} from '../jsm/loaders/GLTFLoader.js';
+            import { PointerLockControls } from '../jsm/controls/PointerLockControls.js';
+            import {TWEEN} from '../jsm/libs/tween.module.min.js';
+            let container;
+            let camera, scene, renderer,controls;
+            let plane,tools;
+            let raycaster, mouse;
+            let eventArray = [];
+            let maps=[];
+            let qianjin,icon=[];
+            let INTERSECTED;
+	        let currentColor;
+            let showTools=false;
+            var present=new THREE.Vector3( );
+
+            init();
+            animate();
+            
+            function init(){
+                container = document.createElement( 'div' );
+                document.body.appendChild( container );
+                loadTexture();                
+                
+                var dragObject=[];
+                //scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color( 0xcce0ff );
+                //camara
+                camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.05, 10000 );
+                camera.position.set( 0, 3, 0 );
+
+                var axisHelper = new THREE.AxisHelper(250);
+                scene.add(axisHelper);
+                
+                //light
+                scene.add( new THREE.AmbientLight( 0x666666 ) );
+                //plane
+                const geometry = new THREE.PlaneBufferGeometry( 1, 1, 1 );
+                geometry.rotateX(Math.PI*.5);
+                const material = new THREE.MeshBasicMaterial( {
+                    transparent:true,
+                    //side: THREE.DoubleSide,
+                    side:1,
+                    //depthWrite:false,
+                    map:qianjin,
+                } );
+                plane = new THREE.Mesh( geometry, material );
+                scene.add( plane );
+                plane.renderOrder = 5;
+                console.log('plane',plane);
+                //tools
+                const geo1 = new THREE.PlaneBufferGeometry( 0.5, .5 ,.5 );
+                var materials=[];
+                tools=new THREE.Group();
+                var tool;
+                for(var i=0;i<3;i++)
+                {
+                    materials[i]=new THREE.MeshBasicMaterial( {
+                        transparent:true,
+                        side: THREE.DoubleSide,
+                        //side:1,
+                        // //depthWrite:false,
+                        map:icon[i],
+                        color:0xff0000,
+                    } );
+                    tool=new THREE.Mesh( geo1, materials[i] );
+                    tool.position.set( 0, 0, 0 );
+                    tools.add(tool);
+                    eventArray.push(tool);
+                    tools.renderOrder = 5;
+                }
+                tools.children[0].name="closer";
+                tools.children[1].name="collect";
+                tools.children[2].name="nextone";
+                //eventArray.push(tools);
+                console.log('tools',tools);
+                
+                //导入glb文件
+                const loader= new GLTFLoader();
+                loader.load(
+                    'scene.glb',
+                    function(gltf){
+                        scene.add(gltf.scene);
+                        //camara=gltf.camera;
+                        let i=0;
+                        gltf.scene.traverse(function(child){
+                            // 得到他下面的所有模型
+                            eventArray.push(child);
+                            if(child.name.search(/h\d+_t/)==0)
+                            {
+                                dragObject.push(child);
+                                const map = maps[i++];
+                                child.material = new THREE.MeshBasicMaterial({
+                                    map: map,
+                                    side: 2
+                                })
+                                child._type='hua';
+                                eventArray.push(child);
+                                console.log(child.name,child.rotation);
+                            }
+                            if(child.name=='dm')
+                            {
+                                child._type='dimian';
+                                eventArray.push(child);
+                            }
+                            if(child.name=='dm2')
+                            {
+                                child.material.colorWrite=false;
+                            }
+                    })
+                    console.log('maps',maps);
+                    console.log('eventArray',eventArray);
+                    console.log('gltf.scene',gltf.scene);   
+                })
+                //render
+                renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				container.appendChild( renderer.domElement );
+
+				renderer.outputEncoding = THREE.sRGBEncoding;
+
+                renderer.shadowMap.enabled = true;
+                // controls
+                controls = new OrbitControls( camera, renderer.domElement );
+                controls.target.set( 0, 3, 0);
+				// controls.minDistance = 1;
+                // controls.maxDistance = 1;
+
+                raycaster = new THREE.Raycaster();
+                mouse = new THREE.Vector2();
+                window.addEventListener('click', onDocumentMouseDown, false);
+                window.addEventListener( 'resize', onWindowResize, false );
+                window.addEventListener('mousemove', onDocumentMouseMove, false);
+                
+            }
+            function loadTexture(){
+                var txueLoader = new THREE.TextureLoader();
+                for(let i=1;i<=10;i++){
+                    const name='img'+i;
+                    txueLoader.load('./images/'+i+'.jpg',function(t){
+                        maps.push(t);
+                        //console.log('width',t.image.width);
+                    })
+                }
+                qianjin=txueLoader.load('./images/qianjin.png'); 
+                icon[0]=txueLoader.load('./images/closer.png'); 
+                icon[1]=txueLoader.load('./images/collect.png'); 
+                icon[2]=txueLoader.load('./images/nextone.png'); 
+
+            }
+            function getModelBox(obj) {
+                const box = new THREE.Box3();
+                box.setFromObject(obj);
+
+                const center = new THREE.Vector3();
+                const size = new THREE.Vector3();
+
+                box.getSize(size);
+                box.getCenter(center);
+
+                return {
+                    size: size,
+                    center: center,
+                    box: box
+                };
+            }
+            function onDocumentMouseDown(event) {
+                event.preventDefault();
+                mouse.x = (event.layerX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.layerY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+                var intersects = raycaster.intersectObjects(eventArray);
+                var op={}
+                if(intersects.length != 0)
+                {
+                    console.log("点击",intersects[0]);
+                    //点击地面操作
+                    if (intersects[0].object._type=='dimian') {
+                        plane.material.opacity=1;
+                        const intersect = intersects[0];
+                        const src = camera.position.clone(); 
+                        const dst = intersect.point.clone();
+                        dst.y = src.y;
+                        //plane.position.set(dst);
+                        plane.position.x=dst.x;
+                        plane.position.z=dst.z;
+                        const tdst = controls.target.clone();
+                        console.log("controls.target",controls.target);
+                        const tween1 = new TWEEN.Tween(camera.position).to(dst, 1000).start().onUpdate(function() {
+                            // 计算差值 始终保持镜头方向 
+                            const target = tdst.clone().add(camera.position.clone().sub(src))
+                            controls.target.copy(target);
+                        });
+                        const tween2=new TWEEN.Tween(plane.material).to({opacity:0}, 1000).start();
+                        //tween1.chain(tween2);
+                    } 
+                    //点击画操作
+                    if(intersects[0].object._type=='hua'){
+                        if(!showTools){
+                            scene.add(tools);
+                            showTools=true;
+                            console.log('改为显示',showTools);
+                        }
+                        const intersect = intersects[0];
+                        var add=[];
+                        const box=getModelBox(intersect.object);
+                        console.log('box',box);
+
+                        const src = camera.position.clone(); 
+
+                        // var left=new THREE.Vector2(box.box.max.x,box.box.max.z);
+                        // var mid=new THREE.Vector2(box.center.x,box.center.z);
+                        // var right=new THREE.Vector2(box.box.min.x,box.box.min.z);
+
+                        // left.rotateAround(mid,Math.PI/2);
+                        // var dst=new THREE.Vector3(left.x,3,left.y);
+                        // var start=new THREE.Vector3(mid.x,3,mid.y);
+                        // //start.lerp(dst,5/start.distanceTo(dst));
+                        // dst.lerp(start,2);
+                        // const points=[];
+                        // points.push(dst);
+                        // points.push(start);
+                        // //points.push(right);
+                        // const materialLine = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+                        // const geometryLine = new THREE.BufferGeometry().setFromPoints( points );
+                        // const line = new THREE.Line( geometryLine, materialLine );
+                        // scene.add(line);
+
+                        add[0]= new THREE.Vector3( 0, -box.size.y*0.8, 0 );
+                        add[1]= new THREE.Vector3( 1, -box.size.y*0.8, 0 );
+                        add[2]= new THREE.Vector3( -1, -box.size.y*0.8, 0 );
+                        present=intersect.object.position.clone();
+
+                        tools.position.copy(present);
+                        for(var i=0;i<3;i++){
+                            tools.children[i].position.set(0,0,0);
+                            const tween = new TWEEN.Tween(tools.children[i].position).to(add[i],500).start();
+                        } 
+                        //tools.position.copy(present);
+                        const quaternion = new THREE.Quaternion();
+                        intersects[0].object.getWorldQuaternion(quaternion); 
+                        tools.setRotationFromQuaternion(quaternion);
+                        tools.rotation.y-=Math.PI/2 ;                                               
+                    }
+                    else if(intersects[0].object.name=='closer'){
+                        const box=getModelBox(intersects[0].object);
+                        console.log('getModelBox',box);
+                        var left=new THREE.Vector2(box.box.max.x,box.box.max.z);
+                        var mid=new THREE.Vector2(box.center.x,box.center.z);
+                        var right=new THREE.Vector2(box.box.min.x,box.box.min.z);
+                        var i;
+                        var angle=box.box.max.angleTo(box.center);
+                        left.rotateAround(mid,Math.PI/2+angle);
+                        var dst=new THREE.Vector3(left.x,3,left.y);
+                        var start=new THREE.Vector3(mid.x,3,mid.y);
+                        start.lerp(dst,5/start.distanceTo(dst));
+                        const points=[];
+                        points.push(dst);
+                        points.push(start);
+                        //points.push(right);
+                        const materialLine = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+                        const geometryLine = new THREE.BufferGeometry().setFromPoints( points );
+                        const line = new THREE.Line( geometryLine, materialLine );
+                        scene.add(line);
+                        // const tdst = controls.target.clone();
+                        // const src = camera.position.clone(); 
+                        // const tween = new TWEEN.Tween(camera.position).to(start, 1000).start().onUpdate(function() {
+                        //     // 计算差值 始终保持镜头方向 
+                        //     const target = tdst.clone().add(camera.position.clone().sub(src))
+                        //     controls.target.copy(target);
+                        // });
+
+                    }
+                    else if(intersects[0].object.name=='collect'){
+                        
+                    }
+                    else if(intersects[0].object.name=='nextone'){
+                        
+                    }
+                    else if(showTools){
+                        const zero=new THREE.Vector3(0,0,0);
+                        for(var i=0;i<3;i++){
+                            const tween = new TWEEN.Tween(tools.children[i].position).to(zero,500).start().onStop(function(){
+                                scene.remove(tools);
+                            })
+                        }                        
+                        showTools=false;
+                        console.log('改为不显示',showTools);
+                    }
+                    //点击选项操作
+                    //if()
+                }
+            }               
+            // mouse event
+            function onDocumentMouseMove(event) {
+                event.preventDefault();
+                mouse.x = (event.layerX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.layerY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+                var intersects = raycaster.intersectObjects(eventArray);
+                if ( intersects.length!=0&&intersects[0].object._type=='hua' ) {
+                    //移入了下一个物体
+                    if ( intersects[ 0 ].object !=INTERSECTED  ) {
+                        //恢复上一个聚焦物体的颜色
+                        if ( INTERSECTED ) INTERSECTED.material.setValues({
+                            color:currentColor,					
+                        })
+                        INTERSECTED = intersects[ 0 ].object;
+                        currentColor = INTERSECTED.material.color.clone();//记录当前选定物体的颜色
+                        // currentColor2= INTERSECTED.material.emi
+                        INTERSECTED.material.setValues({
+                            color:0xccffcc,
+                        })
+                    }
+                }
+                else{
+                    if ( INTERSECTED ) INTERSECTED.material.setValues({
+                        color:currentColor,					
+                    })
+                    INTERSECTED = null;
+                }
+            }
+            function onWindowResize() {
+
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+
+                renderer.setSize( window.innerWidth, window.innerHeight );
+
+            }
+            function animate() {
+
+                requestAnimationFrame(animate);
+
+                render();
+                controls.update();
+
+
+            }
+            function render() {
+                renderer.render(scene, camera);
+                //console.log("camera.position",camera.position);
+                TWEEN.update();
+
+             }
+            </script>
+    </body>
+
+</html>
