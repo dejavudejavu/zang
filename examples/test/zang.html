@@ -96,7 +96,7 @@
                 tools.children[2].name="nextone";
                 //eventArray.push(tools);
                 console.log('tools',tools);
-                
+                                
                 //导入glb文件
                 const loader= new GLTFLoader();
                 loader.load(
@@ -188,6 +188,12 @@
                     box: box
                 };
             }
+            function addBox() {
+                const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const cube = new THREE.Mesh(geometry, material);
+                return cube;
+            }
             function onDocumentMouseDown(event) {
                 event.preventDefault();
                 mouse.x = (event.layerX / window.innerWidth) * 2 - 1;
@@ -232,24 +238,6 @@
 
                         const src = camera.position.clone(); 
 
-                        // var left=new THREE.Vector2(box.box.max.x,box.box.max.z);
-                        // var mid=new THREE.Vector2(box.center.x,box.center.z);
-                        // var right=new THREE.Vector2(box.box.min.x,box.box.min.z);
-
-                        // left.rotateAround(mid,Math.PI/2);
-                        // var dst=new THREE.Vector3(left.x,3,left.y);
-                        // var start=new THREE.Vector3(mid.x,3,mid.y);
-                        // //start.lerp(dst,5/start.distanceTo(dst));
-                        // dst.lerp(start,2);
-                        // const points=[];
-                        // points.push(dst);
-                        // points.push(start);
-                        // //points.push(right);
-                        // const materialLine = new THREE.LineBasicMaterial( { color: 0xff0000 } );
-                        // const geometryLine = new THREE.BufferGeometry().setFromPoints( points );
-                        // const line = new THREE.Line( geometryLine, materialLine );
-                        // scene.add(line);
-
                         add[0]= new THREE.Vector3( 0, -box.size.y*0.8, 0 );
                         add[1]= new THREE.Vector3( 1, -box.size.y*0.8, 0 );
                         add[2]= new THREE.Vector3( -1, -box.size.y*0.8, 0 );
@@ -267,33 +255,49 @@
                         tools.rotation.y-=Math.PI/2 ;                                               
                     }
                     else if(intersects[0].object.name=='closer'){
-                        const box=getModelBox(intersects[0].object);
-                        console.log('getModelBox',box);
-                        var left=new THREE.Vector2(box.box.max.x,box.box.max.z);
-                        var mid=new THREE.Vector2(box.center.x,box.center.z);
-                        var right=new THREE.Vector2(box.box.min.x,box.box.min.z);
-                        var i;
-                        var angle=box.box.max.angleTo(box.center);
-                        left.rotateAround(mid,Math.PI/2+angle);
-                        var dst=new THREE.Vector3(left.x,3,left.y);
-                        var start=new THREE.Vector3(mid.x,3,mid.y);
-                        start.lerp(dst,5/start.distanceTo(dst));
-                        const points=[];
-                        points.push(dst);
-                        points.push(start);
-                        //points.push(right);
-                        const materialLine = new THREE.LineBasicMaterial( { color: 0xff0000 } );
-                        const geometryLine = new THREE.BufferGeometry().setFromPoints( points );
-                        const line = new THREE.Line( geometryLine, materialLine );
-                        scene.add(line);
-                        // const tdst = controls.target.clone();
-                        // const src = camera.position.clone(); 
-                        // const tween = new TWEEN.Tween(camera.position).to(start, 1000).start().onUpdate(function() {
-                        //     // 计算差值 始终保持镜头方向 
-                        //     const target = tdst.clone().add(camera.position.clone().sub(src))
-                        //     controls.target.copy(target);
-                        // });
+                        // const box=getModelBox(intersects[0].object);
+                        // console.log('getModelBox',box);
+                        // var left=new THREE.Vector2(box.box.max.x,box.box.max.z);
+                        // var mid=new THREE.Vector2(box.center.x,box.center.z);
+                        // var right=new THREE.Vector2(box.box.min.x,box.box.min.z);
+                        // var i;
+                        // var angle=box.box.max.angleTo(box.center);
+                        // left.rotateAround(mid,Math.PI/2+angle);
+                        // var dst=new THREE.Vector3(left.x,3,left.y);
+                        // var start=new THREE.Vector3(mid.x,3,mid.y);
+                        // start.lerp(dst,5/start.distanceTo(dst));
+                        // const points=[];
+                        // points.push(dst);
+                        // points.push(start);
+                        // //points.push(right);
+                        // const materialLine = new THREE.LineBasicMaterial( { color: 0xff0000 } );
+                        // const geometryLine = new THREE.BufferGeometry().setFromPoints( points );
+                        // const line = new THREE.Line( geometryLine, materialLine );
+                        // scene.add(line);
 
+                        const intersect = intersects[0];
+                        const o1 = new THREE.Object3D();
+                        o1.position.z = -4;
+                        // 把控Object添加进画里面
+                        intersect.object.parent.add(o1);
+                        // 获取世界坐标  v1为世界坐标
+                        const v1 = new THREE.Vector3();
+                        o1.getWorldPosition(v1);
+
+                        // 删除空Object
+                        intersect.object.parent.remove(o1);
+
+                        // 添加box测试位置
+                        // const c1 = addBox();
+                        // c1.position.copy(v1)
+                        // scene.add(c1)
+                        const tdst = controls.target.clone();
+                        const src = camera.position.clone(); 
+                        const tween = new TWEEN.Tween(camera.position).to(v1, 1000).start().onUpdate(function() {
+                            // 计算差值 始终保持镜头方向 
+                            const target = tdst.clone().add(camera.position.clone().sub(src))
+                            controls.target.copy(target);
+                        });
                     }
                     else if(intersects[0].object.name=='collect'){
                         
@@ -314,7 +318,8 @@
                     //点击选项操作
                     //if()
                 }
-            }               
+            }   
+
             // mouse event
             function onDocumentMouseMove(event) {
                 event.preventDefault();
