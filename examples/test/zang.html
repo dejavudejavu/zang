@@ -116,9 +116,23 @@
                                     map: map,
                                     side: 2
                                 })
-                                child._type='hua';
+                                child._type='hua';   
                                 eventArray.push(child);
-                                console.log(child.name,child.rotation);
+                                // const o1 = new THREE.Object3D();
+                                // o1.position.x = 4;
+                                // // 把控Object添加进画里面
+                                // child.add(o1);
+                                // // 获取世界坐标  v1为世界坐标
+                                // const v1 = new THREE.Vector3();
+                                // o1.getWorldPosition(v1);
+
+                                // // 删除空Object
+                                // child.remove(o1);
+
+                                // // 添加box测试位置
+                                // const c1 = addBox();
+                                // c1.position.copy(v1)
+                                // scene.add(c1)
                             }
                             if(child.name=='dm')
                             {
@@ -194,6 +208,7 @@
                 const cube = new THREE.Mesh(geometry, material);
                 return cube;
             }
+            var selectedHua;
             function onDocumentMouseDown(event) {
                 event.preventDefault();
                 mouse.x = (event.layerX / window.innerWidth) * 2 - 1;
@@ -229,11 +244,10 @@
                         if(!showTools){
                             scene.add(tools);
                             showTools=true;
-                            console.log('改为显示',showTools);
                         }
-                        const intersect = intersects[0];
+                        selectedHua = intersects[0];
                         var add=[];
-                        const box=getModelBox(intersect.object);
+                        const box=getModelBox(selectedHua.object);
                         console.log('box',box);
 
                         const src = camera.position.clone(); 
@@ -241,7 +255,7 @@
                         add[0]= new THREE.Vector3( 0, -box.size.y*0.8, 0 );
                         add[1]= new THREE.Vector3( 1, -box.size.y*0.8, 0 );
                         add[2]= new THREE.Vector3( -1, -box.size.y*0.8, 0 );
-                        present=intersect.object.position.clone();
+                        present=selectedHua.object.position.clone();
 
                         tools.position.copy(present);
                         for(var i=0;i<3;i++){
@@ -275,29 +289,47 @@
                         // const line = new THREE.Line( geometryLine, materialLine );
                         // scene.add(line);
 
+
                         const intersect = intersects[0];
                         const o1 = new THREE.Object3D();
-                        o1.position.z = -4;
+                        const o2 = new THREE.Object3D();
+                        o1.position.x = 4;
+
                         // 把控Object添加进画里面
-                        intersect.object.parent.add(o1);
+                        selectedHua.object.add(o1);
+                        selectedHua.object.add(o2);
                         // 获取世界坐标  v1为世界坐标
                         const v1 = new THREE.Vector3();
+                        const v2 = new THREE.Vector3();
                         o1.getWorldPosition(v1);
+                        o2.getWorldPosition(v2);
 
                         // 删除空Object
-                        intersect.object.parent.remove(o1);
-
-                        // 添加box测试位置
+                        selectedHua.object.remove(o1);
+                        selectedHua.object.remove(o2);
+                        // // 添加box测试位置
                         // const c1 = addBox();
                         // c1.position.copy(v1)
                         // scene.add(c1)
+
                         const tdst = controls.target.clone();
-                        const src = camera.position.clone(); 
-                        const tween = new TWEEN.Tween(camera.position).to(v1, 1000).start().onUpdate(function() {
-                            // 计算差值 始终保持镜头方向 
-                            const target = tdst.clone().add(camera.position.clone().sub(src))
-                            controls.target.copy(target);
-                        });
+                        const src = camera.position.clone();
+                        var _Src = {
+                            index: 0
+                        }
+                        var _Drc = {
+                            index: 1
+                        }
+                        controls.target.copy(v2);
+                        const tween = new TWEEN.Tween(_Src).to(_Drc, 1000).start().onUpdate(function () {
+                            const _position = src.clone().lerp(v1, _Src.index);
+                            //const _target = tdst.clone().lerp(v2, _Src.index);
+                            //_position.y = _target.y;
+                            camera.position.copy(_position);
+                            //controls.target.copy(_target);
+                        }).onComplete(function () { 
+                            controls.target.lerp(camera.position, 0.99);
+                        })
                     }
                     else if(intersects[0].object.name=='collect'){
                         
@@ -313,7 +345,11 @@
                             })
                         }                        
                         showTools=false;
-                        console.log('改为不显示',showTools);
+                        var cam=camera.position.clone();
+                        var con=controls.target.clone();
+                        cam.y=con.y=3;
+                        camera.position.copy(cam);
+                        controls.target.copy(con);
                     }
                     //点击选项操作
                     //if()
